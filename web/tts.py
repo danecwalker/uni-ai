@@ -1,12 +1,10 @@
 import io
+import re
 import wave
 from pathlib import Path
-from typing import Optional
-from urllib.request import urlretrieve
+from typing import Iterator, Optional
 
 
-# Curated Kokoro v1.0 voices. (af_ = American female, am_ = American male,
-# bf_ = British female, bm_ = British male)
 VOICES = [
     "af_heart", "af_alloy", "af_aoede", "af_bella", "af_jessica",
     "af_kore", "af_nicole", "af_nova", "af_river", "af_sarah", "af_sky",
@@ -16,58 +14,69 @@ VOICES = [
     "bm_daniel", "bm_fable", "bm_george", "bm_lewis",
 ]
 DEFAULT_VOICE = "af_heart"
-
-MODEL_URL = "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/kokoro-v1.0.onnx"
-VOICES_URL = "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/voices-v1.0.bin"
+SAMPLE_RATE = 24000
 
 
 class KokoroTts:
     def __init__(self, models_dir: Path):
         self.models_dir = models_dir
         self.models_dir.mkdir(parents=True, exist_ok=True)
-        self.kokoro = None
+        self.pipelines: dict[str, object] = {}
         self.available = False
         try:
-            import kokoro_onnx  # noqa: F401
+            from kokoro import KPipeline  # noqa: F401
         except ImportError as exc:
-            print(f"kokoro-onnx not installed: {exc}. Run: pip install kokoro-onnx")
+            print(f"kokoro not installed: {exc}. Run: pip install kokoro torch")
             return
         try:
-            self._ensure_files()
-            from kokoro_onnx import Kokoro
-            self.kokoro = Kokoro(
-                str(self.models_dir / "kokoro-v1.0.onnx"),
-                str(self.models_dir / "voices-v1.0.bin"),
-            )
+            self._get_pipeline("a")
             self.available = True
-            print(f"Kokoro TTS loaded ({len(VOICES)} voices)")
+            print(f"Kokoro-82M TTS loaded ({len(VOICES)} voices)")
         except Exception as exc:
             print(f"Kokoro load failed: {exc}")
 
-    def _ensure_files(self) -> None:
-        for path, url in [
-            (self.models_dir / "kokoro-v1.0.onnx", MODEL_URL),
-            (self.models_dir / "voices-v1.0.bin", VOICES_URL),
-        ]:
-            if not path.exists():
-                print(f"[kokoro] downloading {url} ({path.name})")
-                urlretrieve(url, path)
+    def _get_pipeline(self, lang_code: str):
+        if lang_code not in self.pipelines:
+            from kokoro import KPipeline
+            self.pipelines[lang_code] = KPipeline(lang_code=lang_code)
+        return self.pipelines[lang_code]
+
+    def _lang_for_voice(self, voice: str) -> str:
+        return "b" if voice.startswith("b") else "a"
+
+    def _iter_pcm(self, text: str, voice: str, speed: float) -> Iterator[bytes]:
+        import numpy as np
+
+        pipeline = self._get_pipeline(self._lang_for_voice(voice))
+        # split on sentence boundaries so KPipeline yields chunks sooner
+        chunks = [c.strip() for c in re.split(r"(?<=[.!?])\s+", text) if c.strip()]
+        joined = "\n".join(chunks) if chunks else text
+        for _, _, audio in pipeline(joined, voice=voice, speed=speed):
+            if audio is None:
+                continue
+            samples = audio.detach().cpu().numpy() if hasattr(audio, "detach") else np.asarray(audio)
+            pcm = (np.clip(samples, -1.0, 1.0) * 32767).astype(np.int16)
+            yield pcm.tobytes()
+
+    def stream_pcm(self, text: str, voice: str = DEFAULT_VOICE, speed: float = 1.0) -> Iterator[bytes]:
+        if not self.available:
+            return iter(())
+        if voice not in VOICES:
+            voice = DEFAULT_VOICE
+        return self._iter_pcm(text, voice, speed)
 
     def synth_wav(self, text: str, voice: str = DEFAULT_VOICE, speed: float = 1.0) -> Optional[bytes]:
-        if not self.available or not self.kokoro:
+        if not self.available:
             return None
         if voice not in VOICES:
             voice = DEFAULT_VOICE
-        lang = "en-gb" if voice.startswith("b") else "en-us"
-        samples, sample_rate = self.kokoro.create(text, voice=voice, speed=speed, lang=lang)
-        # samples: float32 numpy array in [-1, 1]; encode as 16-bit PCM WAV.
-        import numpy as np
-
-        pcm = (np.clip(samples, -1.0, 1.0) * 32767).astype(np.int16)
+        pcm = b"".join(self._iter_pcm(text, voice, speed))
+        if not pcm:
+            return None
         buf = io.BytesIO()
         with wave.open(buf, "wb") as wav:
             wav.setnchannels(1)
             wav.setsampwidth(2)
-            wav.setframerate(int(sample_rate))
-            wav.writeframes(pcm.tobytes())
+            wav.setframerate(SAMPLE_RATE)
+            wav.writeframes(pcm)
         return buf.getvalue()

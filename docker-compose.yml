@@ -1,20 +1,70 @@
+# Local-demo compose file. Builds the image by default; set IMAGE to pull from
+# ghcr.io instead (`IMAGE=ghcr.io/<owner>/<repo>:latest docker compose up -d`).
+
 services:
   companion-ai:
-    build: .
-    image: companion-ai:latest
+    image: ${IMAGE:-companion-ai:latest}
+    build:
+      context: .
+      # Skip the build step when IMAGE points at a remote tag — Compose still
+      # tags the pulled image locally.
+      pull: true
     container_name: companion-ai
+
     ports:
-      - "8000:8000"
+      - "${PORT:-8000}:8000"
+
     env_file:
       - .env
+
+    # Override individual vars without touching .env if you want.
+    environment:
+      PYTHONUNBUFFERED: "1"
+      # TZ: Europe/London
+
     volumes:
-      # Persist downloaded models + Chroma vector DBs across restarts.
-      - ./models:/app/models
+      # Persist downloaded models (Kokoro, InsightFace) + Chroma vector DBs.
+      # Named volume — Docker manages ownership/permissions, no host-permission
+      # issues. To browse files from the host, use:
+      #   docker run --rm -v companion-ai-models:/m alpine ls /m
+      # or swap this line for a bind mount, e.g. `- ./models:/app/models`,
+      # remembering to `chmod -R a+rwX ./models` first.
+      - companion-ai-models:/app/models
+      # Whisper STT and Kokoro write small temp WAVs — keep them off the
+      # writable layer for speed.
+      - type: tmpfs
+        target: /tmp
+        tmpfs:
+          size: 64m
+
     restart: unless-stopped
-    # Healthcheck hits the lightweight /api/state endpoint.
+
+    # Cap log files so a long-running demo doesn't fill the disk.
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+    # Soft resource cap. Lift / drop based on host. The app is mostly CPU
+    # (InsightFace ~120 ms / snapshot, Kokoro ~600 ms / sentence).
+    deploy:
+      resources:
+        limits:
+          cpus: "4.0"
+          memory: 3g
+        reservations:
+          memory: 1g
+
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8000/api/state"]
       interval: 30s
       timeout: 5s
       retries: 5
-      start_period: 60s
+      start_period: 90s   # buffalo_l model loads on first /api/state hit
+
+    # Helpful when something deep in onnxruntime SEGVs — prints a usable trace.
+    stop_grace_period: 10s
+
+volumes:
+  companion-ai-models:

@@ -324,7 +324,7 @@ class TtsIn(BaseModel):
 @app.post("/api/tts")
 def tts(payload: TtsIn):
     if not kokoro_tts.available:
-        raise HTTPException(503, "kokoro-onnx not installed (pip install kokoro-onnx)")
+        raise HTTPException(503, "kokoro not installed (pip install kokoro torch)")
     from fastapi.responses import Response
     try:
         audio = kokoro_tts.synth_wav(payload.text, payload.voice or KOKORO_DEFAULT)
@@ -333,6 +333,28 @@ def tts(payload: TtsIn):
     if not audio:
         raise HTTPException(502, "TTS produced no audio")
     return Response(content=audio, media_type="audio/wav")
+
+
+@app.post("/api/tts/stream")
+def tts_stream(payload: TtsIn):
+    if not kokoro_tts.available:
+        raise HTTPException(503, "kokoro not installed (pip install kokoro torch)")
+    from fastapi.responses import StreamingResponse
+    from web.tts import SAMPLE_RATE
+
+    def gen():
+        try:
+            for chunk in kokoro_tts.stream_pcm(payload.text, payload.voice or KOKORO_DEFAULT):
+                if chunk:
+                    yield chunk
+        except Exception as exc:
+            print(f"TTS stream failed: {exc}")
+
+    headers = {
+        "X-Sample-Rate": str(SAMPLE_RATE),
+        "Cache-Control": "no-store",
+    }
+    return StreamingResponse(gen(), media_type="application/octet-stream", headers=headers)
 
 
 @app.post("/api/vision/snapshot")

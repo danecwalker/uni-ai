@@ -1,0 +1,16 @@
+# Production / demo-machine overlay — pulls the published GHCR image instead
+# of building locally. Usage:
+#
+#   IMAGE=ghcr.io/<owner>/<repo>:latest \
+#     docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# Or set IMAGE in a `.env` file alongside this one and just run:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+services:
+  companion-ai:
+    # Force a pull every `up` so the demo machine always lands on the latest
+    # tag. Drop to `policy: missing` if you want to stay on a pinned version.
+    pull_policy: always
+    # Disable the local build step — we're pulling, not building.
+    build: !reset

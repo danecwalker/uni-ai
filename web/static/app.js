@@ -76,75 +76,119 @@ function setListening(on, label, active = false) {
   if (on && label) listeningEl.querySelector('.listening-label').textContent = label;
 }
 
-let ttsAudio = null;       // currently-playing <audio>
-let ttsAvailable = false;  // backend Groq TTS available
+let ttsAvailable = false;  // backend Kokoro TTS available
+let ttsCtx = null;
+let ttsAnalyser = null;
+let ttsGain = null;
+let ttsAmpRAF = null;
+let ttsAbort = null;
+let ttsPlayhead = 0;
+let ttsActiveSources = new Set();
 
 async function speak(text) {
   if (!ttsToggle.checked || !text) return;
   if (ttsAvailable) {
-    try { await speakViaGroq(text); return; }
-    catch (e) { console.warn('Groq TTS failed, falling back to browser:', e); }
+    try { await speakViaKokoro(text); return; }
+    catch (e) { console.warn('Kokoro TTS failed, falling back to browser:', e); }
   }
   await speakViaBrowser(text);
 }
 
 function stopSpeaking() {
-  if (ttsAudio) { try { ttsAudio.pause(); } catch {} ttsAudio = null; }
+  if (ttsAbort) { try { ttsAbort.abort(); } catch {} ttsAbort = null; }
+  for (const s of ttsActiveSources) { try { s.stop(); } catch {} }
+  ttsActiveSources.clear();
+  ttsPlayhead = 0;
+  stopAmpLoop();
   try { speechSynthesis.cancel(); } catch {}
 }
 
-let ttsAnalyserCtx = null;
-let ttsAmpRAF = null;
+function ensureAudioGraph() {
+  if (!ttsCtx) {
+    ttsCtx = new (window.AudioContext || window.webkitAudioContext)();
+    ttsAnalyser = ttsCtx.createAnalyser();
+    ttsAnalyser.fftSize = 512;
+    ttsGain = ttsCtx.createGain();
+    ttsGain.connect(ttsAnalyser);
+    ttsAnalyser.connect(ttsCtx.destination);
+  }
+  if (ttsCtx.state === 'suspended') ttsCtx.resume();
+}
 
-async function speakViaGroq(text) {
+function scheduleChunk(int16, sampleRate) {
+  ensureAudioGraph();
+  const frames = int16.length;
+  if (!frames) return;
+  const buffer = ttsCtx.createBuffer(1, frames, sampleRate);
+  const ch = buffer.getChannelData(0);
+  for (let i = 0; i < frames; i++) ch[i] = int16[i] / 32768;
+  const src = ttsCtx.createBufferSource();
+  src.buffer = buffer;
+  src.connect(ttsGain);
+  const now = ttsCtx.currentTime;
+  const startAt = Math.max(now + 0.02, ttsPlayhead);
+  src.start(startAt);
+  ttsPlayhead = startAt + buffer.duration;
+  ttsActiveSources.add(src);
+  src.onended = () => ttsActiveSources.delete(src);
+}
+
+async function speakViaKokoro(text) {
   stopSpeaking();
   const voice = voiceSelect.value || undefined;
-  const r = await fetch('/api/tts', {
+  ttsAbort = new AbortController();
+  const r = await fetch('/api/tts/stream', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ text, voice }),
+    signal: ttsAbort.signal,
   });
   if (!r.ok) {
     let detail = '';
     try { detail = (await r.json()).detail || ''; } catch {}
     throw new Error(`tts ${r.status} ${detail}`);
   }
-  const blobData = await r.blob();
-  if (blobData.size < 100) throw new Error(`tts empty response (${blobData.size}b)`);
-  const url = URL.createObjectURL(blobData);
-  ttsAudio = new Audio(url);
-  ttsAudio.crossOrigin = 'anonymous';
-  await new Promise((resolve, reject) => {
-    ttsAudio.onended = () => { URL.revokeObjectURL(url); stopAmpLoop(); resolve(); };
-    ttsAudio.onerror = () => { URL.revokeObjectURL(url); stopAmpLoop(); reject(new Error('audio element error')); };
-    ttsAudio.play().then(() => startAmpLoop(ttsAudio)).catch((err) => { URL.revokeObjectURL(url); reject(err); });
-  });
-  ttsAudio = null;
+  const sampleRate = parseInt(r.headers.get('X-Sample-Rate') || '24000', 10);
+  ensureAudioGraph();
+  startAmpLoop();
+  const reader = r.body.getReader();
+  let pending = new Uint8Array(0);
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    if (!value || !value.length) continue;
+    // accumulate then flush in even-byte units (16-bit PCM)
+    const merged = new Uint8Array(pending.length + value.length);
+    merged.set(pending, 0);
+    merged.set(value, pending.length);
+    const usable = merged.length - (merged.length % 2);
+    if (usable) {
+      const int16 = new Int16Array(merged.buffer, merged.byteOffset, usable / 2);
+      // copy because we'll reuse the underlying buffer
+      scheduleChunk(new Int16Array(int16), sampleRate);
+    }
+    pending = merged.slice(usable);
+  }
+  // wait until scheduled playback finishes
+  const remaining = Math.max(0, ttsPlayhead - ttsCtx.currentTime);
+  await new Promise((res) => setTimeout(res, (remaining + 0.05) * 1000));
+  stopAmpLoop();
+  ttsAbort = null;
 }
 
-function startAmpLoop(audioEl) {
-  try {
-    if (!ttsAnalyserCtx) ttsAnalyserCtx = new (window.AudioContext || window.webkitAudioContext)();
-    if (ttsAnalyserCtx.state === 'suspended') ttsAnalyserCtx.resume();
-    const src = ttsAnalyserCtx.createMediaElementSource(audioEl);
-    const analyser = ttsAnalyserCtx.createAnalyser();
-    analyser.fftSize = 512;
-    src.connect(analyser);
-    src.connect(ttsAnalyserCtx.destination);
-    const buf = new Uint8Array(analyser.frequencyBinCount);
-    const tick = () => {
-      analyser.getByteTimeDomainData(buf);
-      let sum = 0;
-      for (let i = 0; i < buf.length; i++) { const v = (buf[i] - 128) / 128; sum += v * v; }
-      const rms = Math.sqrt(sum / buf.length);
-      const amp = Math.min(1, rms * 3);
-      if (window.BlobScene) window.BlobScene.setAmp(amp);
-      ttsAmpRAF = requestAnimationFrame(tick);
-    };
-    tick();
-  } catch (e) {
-    // createMediaElementSource only works once per element across contexts; ignore.
-  }
+function startAmpLoop() {
+  if (!ttsAnalyser || ttsAmpRAF) return;
+  const buf = new Uint8Array(ttsAnalyser.frequencyBinCount);
+  const tick = () => {
+    ttsAnalyser.getByteTimeDomainData(buf);
+    let sum = 0;
+    for (let i = 0; i < buf.length; i++) { const v = (buf[i] - 128) / 128; sum += v * v; }
+    const rms = Math.sqrt(sum / buf.length);
+    const amp = Math.min(1, rms * 3);
+    if (window.BlobScene) window.BlobScene.setAmp(amp);
+    ttsAmpRAF = requestAnimationFrame(tick);
+  };
+  tick();
 }
 
 function stopAmpLoop() {

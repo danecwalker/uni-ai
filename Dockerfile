@@ -3,7 +3,7 @@ FROM python:3.12-slim
 
 # System libs required by:
 #  - opencv-python                 → libgl1, libglib2.0-0
-#  - kokoro-onnx (espeak phonemes) → espeak-ng
+#  - kokoro / misaki G2P phonemes  → espeak-ng
 #  - insightface wheel install     → build-essential, cmake (only used if pip
 #                                    falls back to building from source)
 ENV PYTHONDONTWRITEBYTECODE=1 \
