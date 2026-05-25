@@ -1,5 +1,7 @@
 import os
 import shutil
+import subprocess
+import sys
 from pathlib import Path
 
 
@@ -11,12 +13,20 @@ class LocalTextToSpeechProvider:
 
     def __init__(self):
         self.engine = None
+        self.say_command = None
 
         if _running_in_wsl() and os.getenv("WSL_AUDIO", "0") != "1":
             print("WSL detected: text-to-speech audio disabled. Set WSL_AUDIO=1 to force-enable it.")
             return
 
-        if shutil.which("aplay") is None:
+        if sys.platform == "darwin":
+            self.say_command = shutil.which("say")
+            if self.say_command is None:
+                print("Text-to-speech audio is unavailable: macOS 'say' was not found.")
+                print("Continuing with text-only responses.")
+            return
+
+        if sys.platform.startswith("linux") and shutil.which("aplay") is None:
             print("Text-to-speech audio is unavailable: 'aplay' was not found.")
             print("Install alsa-utils, or continue with text-only responses.")
             return
@@ -35,6 +45,12 @@ class LocalTextToSpeechProvider:
     def speak(self, text: str) -> None:
         print(f"AI: {text}")
         if self.engine is None:
+            if self.say_command is not None:
+                try:
+                    subprocess.run([self.say_command, text], check=False)
+                except Exception as exc:
+                    print(f"Text-to-speech playback failed: {exc}")
+                    self.say_command = None
             return
         try:
             self.engine.say(text)

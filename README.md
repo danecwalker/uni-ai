@@ -14,6 +14,15 @@ This is not a medical or crisis-support system. Emotion detection is imperfect a
 
 ## Setup
 
+The app can start with only the Python standard library installed. Missing
+optional packages disable the matching feature instead of crashing:
+
+- no `python-dotenv`: environment is read directly from the shell
+- no `groq` or `GROQ_API_KEY`: offline text-only replies and typed input
+- no `opencv-python` / `numpy`: webcam emotion detection is disabled
+- no `sounddevice` / `soundfile` / PortAudio: typed input is used
+- no `pyttsx3` / audio backend: responses are printed as text
+
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
@@ -92,7 +101,7 @@ GROQ_API_KEY=your_key_here
 python3 -m companion_ai.main
 ```
 
-The assistant will watch for emotional cues. If it detects sadness for several frames, it may begin with something like:
+The assistant watches for sustained non-neutral webcam cues, treats them as uncertain, and asks the AI whether a gentle workplace-wellbeing check-in is warranted. If it sees a sustained signal, it may begin with something like:
 
 > I notice you seem a little unhappy. Do you want to talk about what's going on?
 
