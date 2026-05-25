@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Companion AI</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <header>
+    <h1>Companion AI</h1>
+    <div class="status">
+      <span id="mode-pill" class="pill idle">idle</span>
+      <span id="emotion-pill" class="pill">emotion: —</span>
+      <button id="chat-toggle-btn" type="button">Show chat</button>
+      <button id="reset-btn" type="button">Reset</button>
+    </div>
+  </header>
+
+  <main class="stage">
+    <div class="blob-wrap">
+      <div id="blob" class="blob" data-state="idle"></div>
+      <div id="blob-label" class="blob-label">Tap “Start conversation” to begin</div>
+      <div id="blob-caption" class="blob-caption"></div>
+    </div>
+
+    <aside class="cam-strip">
+      <div class="cam-frame">
+        <video id="video" autoplay muted playsinline></video>
+        <canvas id="bbox-overlay" class="bbox-overlay"></canvas>
+      </div>
+      <canvas id="canvas" hidden></canvas>
+      <div class="cam-controls">
+        <label><input type="checkbox" id="cam-toggle" checked /> Webcam</label>
+        <label><input type="checkbox" id="tts-toggle" checked /> Speak</label>
+        <label>Voice
+          <select id="voice-select"></select>
+        </label>
+      </div>
+    </aside>
+
+    <div id="chat-drawer" class="chat-drawer" hidden>
+      <div id="messages" class="messages"></div>
+      <form id="chat-form" class="composer">
+        <button type="button" id="mic-btn" title="Hold to talk">🎤</button>
+        <div class="input-wrap">
+          <input id="text-input" type="text" placeholder="Type a message…" autocomplete="off" />
+          <div id="listening-indicator" class="listening" hidden>
+            <span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span>
+            <span class="listening-label">Listening…</span>
+          </div>
+        </div>
+        <button type="submit" id="send-btn">Send</button>
+      </form>
+    </div>
+
+    <div class="convo-bar">
+      <button type="button" id="convo-btn" class="primary big">Start conversation</button>
+    </div>
+  </main>
+
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.min.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/"
+    }
+  }
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.14.0/dist/ort.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@ricky0123/vad-web@0.0.22/dist/bundle.min.js"></script>
+  <script src="/static/vad.js"></script>
+  <script type="module" src="/static/blob.js"></script>
+  <script src="/static/app.js"></script>
+</body>
+</html>

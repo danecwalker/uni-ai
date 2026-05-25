@@ -1,0 +1,34 @@
+.git/
+.gitignore
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Models + persistent data — mounted as a volume, not baked in.
+models/
+
+# Local secrets / per-host config.
+.env
+.env.local
+.envrc
+
+# Editor / OS junk.
+.vscode/
+.idea/
+.DS_Store
+*.swp
+
+# Build artefacts.
+build/
+dist/
+*.egg-info/
+node_modules/
+
+# Logs / temp.
+*.log
+tmp/

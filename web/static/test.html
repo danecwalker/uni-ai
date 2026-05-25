@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Companion AI — Mic / VAD Test</title>
+  <link rel="stylesheet" href="/static/style.css" />
+  <style>
+    .test { max-width: 720px; margin: 24px auto; padding: 20px; background: #161a21; border-radius: 10px; }
+    .row { display: flex; align-items: center; gap: 12px; margin: 12px 0; }
+    .row label { width: 140px; font-size: 0.9rem; color: #9ab8d8; }
+    .meter { flex: 1; height: 18px; background: #0f1115; border: 1px solid #2a3140; border-radius: 4px; position: relative; overflow: hidden; }
+    .meter > .fill { height: 100%; width: 0%; transition: width 60ms linear; }
+    .meter > .fill.rms { background: linear-gradient(90deg, #2d5a3a, #6aa3df, #b54040); }
+    .meter > .fill.vad { background: #6aa3df; }
+    .meter > .threshold { position: absolute; top: 0; bottom: 0; width: 2px; background: #b54040; }
+    .val { width: 64px; text-align: right; font-variant-numeric: tabular-nums; font-size: 0.85rem; color: #c0d0e0; }
+    .log { background: #0f1115; border: 1px solid #2a3140; border-radius: 6px; padding: 10px; height: 180px; overflow-y: auto; font-family: ui-monospace, monospace; font-size: 0.78rem; white-space: pre-wrap; }
+    .pill.ok { background: #2d5a3a; }
+    .pill.bad { background: #b54040; }
+    .pill.warn { background: #806a2d; }
+    .actions { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+    #vad-indicator { display: inline-block; width: 12px; height: 12px; border-radius: 50%; background: #444; }
+    #vad-indicator.speech { background: #6cd16c; box-shadow: 0 0 10px #6cd16c; }
+    audio { width: 100%; margin-top: 8px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Mic / VAD Test</h1>
+    <div class="status"><a href="/" style="color:#9ab8d8;">← back to app</a></div>
+  </header>
+
+  <main style="display:block;">
+    <div class="test">
+      <div class="row">
+        <label>Mic permission</label>
+        <span id="perm-pill" class="pill">unknown</span>
+      </div>
+      <div class="row">
+        <label>Audio context</label>
+        <span id="ctx-pill" class="pill">—</span>
+        <span class="val" id="ctx-sr">— Hz</span>
+      </div>
+      <div class="row">
+        <label>VAD model</label>
+        <span id="vad-pill" class="pill">not loaded</span>
+      </div>
+      <div class="row">
+        <label>Frames received</label>
+        <span class="val" id="frame-count">0</span>
+        <span class="val" id="frame-rate">0/s</span>
+      </div>
+
+      <div class="row">
+        <label>Live RMS (raw)</label>
+        <div class="meter"><div class="fill rms" id="rms-bar"></div></div>
+        <span class="val" id="rms-val">0.000</span>
+      </div>
+
+      <div class="row">
+        <label>Silero p(speech)</label>
+        <div class="meter">
+          <div class="fill vad" id="vad-bar"></div>
+          <div class="threshold" style="left:55%"></div>
+        </div>
+        <span class="val" id="vad-val">0.00</span>
+        <span id="vad-indicator" title="green = speech detected"></span>
+      </div>
+
+      <div class="actions">
+        <button id="start-btn">Start mic</button>
+        <button id="stop-btn">Stop</button>
+        <button id="record-btn">Record 3s &amp; play back</button>
+        <button id="sine-btn">Feed Silero a 440 Hz sine</button>
+      </div>
+
+      <audio id="playback" controls hidden></audio>
+
+      <h3 style="margin-top:20px;">Log</h3>
+      <div class="log" id="log"></div>
+    </div>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.14.0/dist/ort.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@ricky0123/vad-web@0.0.22/dist/bundle.min.js"></script>
+  <script src="/static/vad.js"></script>
+  <script src="/static/test.js"></script>
+</body>
+</html>

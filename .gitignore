@@ -1,4 +1,4 @@
-# Python
+# --- Python ---
 __pycache__/
 *.py[cod]
 *$py.class
@@ -15,33 +15,67 @@ dist/
 .mypy_cache/
 .ruff_cache/
 .coverage
+.coverage.*
+coverage.xml
 htmlcov/
+.tox/
+.nox/
 
-# Environment/secrets
+# --- Environment / secrets ---
 .env
 .env.*
 !.env.example
 
-# Models / large binaries
-models/*.onnx
-models/*.pt
-models/*.pth
-models/*.bin
-models/*.safetensors
+# --- Model weights & vector DBs (auto-downloaded or built at runtime) ---
+# Everything in models/ is generated — Kokoro, InsightFace, Chroma DBs,
+# FER+ ONNX. Keep the folder structure but nothing inside.
+models/
+!models/.gitkeep
 
-# Audio/video captures
+# Belt-and-braces in case anything large lands outside models/
+*.onnx
+*.pt
+*.pth
+*.bin
+*.safetensors
+*.ckpt
+*.gguf
+
+# Chroma / sqlite leftovers
+*.sqlite3
+*.sqlite3-journal
+*.sqlite3-wal
+*.sqlite3-shm
+
+# --- Audio / video captures ---
 *.wav
 *.mp3
+*.ogg
+*.webm
 *.mp4
 *.avi
 *.mov
 *.mkv
 
-# OS/editor
+# --- Docker / build artefacts ---
+*.log
+*.pid
+
+# --- OS / editor ---
 .DS_Store
 Thumbs.db
 .vscode/
 .idea/
+*.swp
+*.swo
+*~
 
-# Pi agent local state
+# --- Node (if anything frontend-related lands here later) ---
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# --- Local agent / tooling state ---
 .pi/
+.claude/

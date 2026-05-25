@@ -1,0 +1,20 @@
+services:
+  companion-ai:
+    build: .
+    image: companion-ai:latest
+    container_name: companion-ai
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    volumes:
+      # Persist downloaded models + Chroma vector DBs across restarts.
+      - ./models:/app/models
+    restart: unless-stopped
+    # Healthcheck hits the lightweight /api/state endpoint.
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/api/state"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 60s

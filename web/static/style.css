@@ -1,0 +1,77 @@
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; font-family: system-ui, sans-serif; background: #000; color: #e8eaed; overflow: hidden; }
+header { display: flex; justify-content: space-between; align-items: center; padding: 12px 20px; border-bottom: 1px solid #1a1f29; position: relative; z-index: 5; }
+h1 { font-size: 1.05rem; margin: 0; font-weight: 500; letter-spacing: 0.3px; }
+.status { display: flex; align-items: center; gap: 10px; }
+.pill { padding: 4px 10px; border-radius: 999px; background: #1f242c; font-size: 0.8rem; }
+.pill.idle { background: #2a3548; }
+.pill.conversation { background: #2d5a3a; }
+button { background: #2a3548; color: #e8eaed; border: 0; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 0.85rem; }
+button:hover { background: #34425a; }
+
+/* === stage === */
+.stage { position: fixed; inset: 56px 0 0 0; display: flex; align-items: center; justify-content: center; flex-direction: column; }
+
+/* === blob === */
+.blob-wrap { display: flex; flex-direction: column; align-items: center; gap: 18px; position: relative; z-index: 3; pointer-events: none; }
+.blob { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block; z-index: 1; pointer-events: none; }
+.blob canvas { display: block; width: 100% !important; height: 100% !important; }
+
+/* labels */
+.blob-label { font-size: 1.05rem; color: #c0d0e0; letter-spacing: 0.4px; text-align: center; }
+.blob-caption {
+  max-width: 640px; min-height: 1.4em;
+  text-align: center; color: #9ab8d8; font-size: 0.95rem; line-height: 1.5;
+  padding: 0 24px;
+}
+
+/* === camera strip (small, bottom-left) === */
+.cam-strip {
+  position: fixed; left: 20px; bottom: 20px;
+  width: 220px; background: #11151c; border: 1px solid #1f2530; border-radius: 12px;
+  padding: 8px; display: flex; flex-direction: column; gap: 8px; z-index: 4;
+}
+.cam-frame { position: relative; }
+#video { width: 100%; aspect-ratio: 4/3; object-fit: cover; background: #000; border-radius: 8px; transform: scaleX(-1); display: block; }
+.bbox-overlay { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; transform: scaleX(-1); border-radius: 8px; }
+.cam-controls { display: flex; flex-wrap: wrap; gap: 8px 12px; font-size: 0.78rem; color: #9ab8d8; align-items: center; }
+.cam-controls select { background: #0b0d12; border: 1px solid #2a3140; color: #e8eaed; border-radius: 4px; padding: 2px 4px; font-size: 0.78rem; }
+
+/* === convo bar (bottom center) === */
+.convo-bar { position: fixed; left: 50%; bottom: 32px; transform: translateX(-50%); z-index: 4; }
+button.primary { background: #2d5a3a; padding: 10px 22px; border-radius: 999px; font-weight: 500; }
+button.primary:hover { background: #357a4a; }
+button.primary.active { background: #b54040; }
+button.primary.big { font-size: 0.95rem; padding: 12px 28px; }
+
+/* === chat drawer === */
+.chat-drawer {
+  position: fixed; right: 20px; top: 76px; bottom: 20px; width: 380px;
+  background: #11151c; border: 1px solid #1f2530; border-radius: 12px;
+  padding: 12px; display: flex; flex-direction: column; gap: 8px; z-index: 4;
+}
+.chat-drawer[hidden] { display: none; }
+.messages { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding: 4px; }
+.msg { padding: 8px 12px; border-radius: 10px; max-width: 90%; white-space: pre-wrap; line-height: 1.4; font-size: 0.9rem; }
+.msg.user { background: #2a3548; align-self: flex-end; }
+.msg.assistant { background: #1f2a36; align-self: flex-start; }
+.msg.system { background: #3a2a2a; align-self: center; font-style: italic; font-size: 0.8rem; }
+.composer { display: flex; gap: 6px; }
+#mic-btn { padding: 8px 10px; }
+.input-wrap { flex: 1; position: relative; display: flex; }
+#text-input { flex: 1; padding: 8px 12px; background: #0b0d12; border: 1px solid #2a3140; color: #e8eaed; border-radius: 8px; width: 100%; font-size: 0.9rem; }
+.listening { position: absolute; inset: 0; background: #0b0d12; border: 1px solid #2a3140; border-radius: 8px; display: flex; align-items: center; gap: 8px; padding: 0 12px; pointer-events: none; transition: border-color 120ms ease; }
+.listening[hidden] { display: none; }
+.listening.active { border-color: #6cd16c; }
+.listening .bar { display: inline-block; width: 3px; height: 14px; background: #4a6a8a; border-radius: 2px; animation: pulse 1.6s ease-in-out infinite; transition: background 120ms ease; }
+.listening.active .bar { background: #6cd16c; animation-duration: 0.8s; }
+.listening .bar:nth-child(2) { animation-delay: 0.15s; }
+.listening .bar:nth-child(3) { animation-delay: 0.3s; }
+.listening .bar:nth-child(4) { animation-delay: 0.45s; }
+.listening-label { color: #9ab8d8; font-size: 0.85rem; margin-left: 4px; }
+@keyframes pulse { 0%, 100% { transform: scaleY(0.4); } 50% { transform: scaleY(1.4); } }
+
+@media (max-width: 800px) {
+  .cam-strip { width: 140px; }
+  .chat-drawer { width: 92%; right: 4%; left: 4%; bottom: 90px; top: auto; height: 50%; }
+}
